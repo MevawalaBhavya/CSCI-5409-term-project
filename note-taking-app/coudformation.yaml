@@ -1,0 +1,494 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "CloudFormation file: EC2, Cognito, API Gateway, Lambda, S3, DynamoDB, Backup"
+
+Parameters:
+  S3BucketName:
+    Description: "The name of the S3 bucket for the collaborative text editor."
+    Type: String
+    Default: "cloud-term-project-bucket-1"
+  CognitoUserPoolArn:
+    Type: String
+    Description: The ARN of the Cognito User Pool to use for the authorizer
+  LambdaSourceBucket:
+    Description: "S3 bucket name of Lambda functions code"
+    Type: String
+    Default: "cloud-term-project-lambda-code-bucket"
+
+Resources:
+  MyS3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Ref S3BucketName
+      AccessControl: PublicRead
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      VersioningConfiguration:
+        Status: Enabled
+
+  MyS3BucketPolicy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      Bucket: !Ref MyS3Bucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - 's3:DeleteObject'
+              - 's3:GetObject'
+              - 's3:PutObject'
+            Resource: !Sub 'arn:aws:s3:::${MyS3Bucket}/*'
+            Principal: '*'
+
+  DynamoDBTable:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      TableName: cloud-term-project-DB-1
+      AttributeDefinitions:
+        - AttributeName: Id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: Id
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      SSESpecification:
+        SSEEnabled: true
+  
+  #DynamoDB Table Backup Vault
+  DynamoDBTableBackupVault:
+    Type: AWS::Backup::BackupVault
+    Properties:
+      BackupVaultName: cloud-term-project-DB-backup-vault
+
+  #DynamoDB Table Backup Plan
+  DynamoDBTableBackupPlan:
+    Type: AWS::Backup::BackupPlan
+    Properties:
+      BackupPlan:
+        BackupPlanName: cloud-term-project-DB-backup
+        BackupPlanRule:
+          - RuleName: cloud-term-project-DB-backup-rule
+            TargetBackupVault: !Ref DynamoDBTableBackupVault
+            ScheduleExpression: cron(0 1 * * ? *) # Daily at 1:00 AM UTC
+            StartWindowMinutes: 60 
+            CompletionWindowMinutes: 10080 # 7 days
+            Lifecycle:
+              DeleteAfterDays: 30 
+            
+  #DynamoDB Table Backup Selection
+  DynamoDBTableBackupSelection:
+    Type: AWS::Backup::BackupSelection
+    Properties:
+      BackupPlanId: !Ref DynamoDBTableBackupPlan
+      BackupSelection:
+        SelectionName: term-project-DB-backup-selection
+        IamRoleArn: !GetAtt DynamoDBTableBackupRole.Arn
+        Resources:
+          - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/term-project-DB
+
+  #DynamoDB Table Backup Role
+  DynamoDBTableBackupRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: DynamoDBTableBackupRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - backup.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: DynamoDBTableBackupPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:*
+                Resource: "*"
+
+    EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0230bd60aa48260c6
+      InstanceType: t2.large
+      KeyName: cloudtermproject
+      SecurityGroups:
+        - Ref: MyEC2SecurityGroup
+      Tags:
+        - Key: Name
+          Value: EC2Instance
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          sudo yum update
+          sudo yum install -y git
+          curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+          nvm install --lts
+          cd /home/ec2-user
+          git clone https://github.com/MevawalaBhavya/CSCI-5409-term-project.git
+          cd CSCI-5409-term-project/note-taking-app/FrontEnd
+          npm install
+          npm start
+
+  MyEC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow SSH and port 3000 access from anywhere
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3000
+          CidrIp: 0.0.0.0/0
+
+  EC2InstanceIP:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: "EC2InstanceIP"
+      Description: "Secrets for the EC2 IP used in this Project"
+      SecretString: !Sub |
+        {
+          "EC2InstanceIP": "${EC2Instance.PublicIp}"}
+
+  MyCognitoUserPool:
+    Type: 'AWS::Cognito::UserPool'
+    Properties:
+      UserPoolName: cloud-term-project-user-pool-1
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Mutable: false
+          Required: true
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
+      AutoVerifiedAttributes:
+        - email
+
+  MyCognitoUserPoolClient:
+    Type: 'AWS::Cognito::UserPoolClient'
+    Properties:
+      ClientName: MyUserPoolClient
+      UserPoolId: !Ref MyCognitoUserPool
+      GenerateSecret: false
+
+  MyCognitoIdentityPool:
+    Type: 'AWS::Cognito::IdentityPool'
+    Properties:
+      IdentityPoolName: MyIdentityPool
+      AllowUnauthenticatedIdentities: false
+      CognitoIdentityProviders:
+        - ClientId: !Ref MyCognitoUserPoolClient
+          ProviderName: !GetAtt MyCognitoUserPool.ProviderName
+  
+  CreateLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: CreateLambdaFunction
+      Description: "Lambda function to create a new note"
+      Handler: index.handler
+      Role: !GetAtt MyLambdaExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: create-note.zip
+      Runtime: nodejs20.x
+      Timeout: 90
+  
+  SaveLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: SaveLambdaFunction
+      Description: "Lambda function to save a note"
+      Handler: index.handler
+      Role: !GetAtt MyLambdaExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: save-note.zip
+      Runtime: nodejs20.x
+      Timeout: 90
+
+  GetAllFilesLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: GetAllFilesLambdaFunction
+      Description: "Lambda function to get all notes"
+      Handler: index.handler
+      Role: !GetAtt MyLambdaExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: get-all-notes.zip
+      Runtime: nodejs20.x
+      Timeout: 90
+  
+  MyApiGateway:
+    Type: 'AWS::ApiGateway::RestApi'
+    Properties:
+      Name: 'note-taking-app-1'
+      Description: "API Gateway for note taking application"
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+  
+  CognitoAuthorizer:
+    Type: 'AWS::ApiGateway::Authorizer'
+    Properties:
+      Name: 'CognitoAuthorizer'
+      Type: COGNITO_USER_POOLS
+      IdentitySource: 'method.request.header.Authorization'
+      RestApiId: !Ref MyApiGateway
+      ProviderARNs: [ !Ref CognitoUserPoolArn ]
+
+  CreateFileResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref MyApiGateway
+      ParentId: !GetAtt MyApiGateway.RootResourceId
+      PathPart: create
+
+#CreateFile Options Method
+  CreateFileOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      RestApiId: !Ref MyApiGateway
+      ResourceId: !Ref MyCreateFileResource
+      HttpMethod: OPTIONS
+      Integration:
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+              "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE'"
+              "method.response.header.Access-Control-Allow-Origin": "'*'"
+            ResponseTemplates:
+              "application/json": ""
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestTemplates:
+          "application/json": '{"statusCode": 200}'
+        Type: MOCK
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Headers": true
+            "method.response.header.Access-Control-Allow-Methods": true
+            "method.response.header.Access-Control-Allow-Origin": true
+          ResponseModels:
+            "application/json": "Empty"
+
+   #CreateFile POST Method
+  CreateFilePostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      RestApiId: !Ref MyApiGateway
+      ResourceId: !Ref CreateFileResource
+      HttpMethod: POST
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CreateLambdaFunction.Arn}/invocations
+        RequestTemplates:
+          application/json: $input.json('$')
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              "application/json": $input.json('$')
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      RequestParameters:
+        method.request.querystring.name: false
+      MethodResponses:
+        - ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+          StatusCode: "200"
+  
+  #Define Lambda Permission for API Gateway to invoke create lambda function
+  CreateLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt CreateLambdaFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${MyApiGateway}/*/POST/create"
+
+  SaveFileResource:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      RestApiId: !Ref MyApiGateway
+      ParentId: !GetAtt 'MyApiGateway.RootResourceId'
+      PathPart: 'save-file'
+
+  SaveFileOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      RestApiId: !Ref MyApiGateway
+      ResourceId: !Ref SaveFileResource
+      HttpMethod: OPTIONS
+      Integration:
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+              "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE'"
+              "method.response.header.Access-Control-Allow-Origin": "'*'"
+            ResponseTemplates:
+              "application/json": ""
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestTemplates:
+          "application/json": '{"statusCode": 200}'
+        Type: MOCK
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            "method.response.header.Access-Control-Allow-Headers": true
+            "method.response.header.Access-Control-Allow-Methods": true
+            "method.response.header.Access-Control-Allow-Origin": true
+          ResponseModels:
+            "application/json": "Empty"
+
+  SaveFilePostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      RestApiId: !Ref MyApiGateway
+      ResourceId: !Ref SaveFileResource
+      HttpMethod: POST
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SaveLambdaFunction.Arn}/invocations
+        RequestTemplates:
+          application/json: $input.json('$')
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              "application/json": $input.json('$')
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      RequestParameters:
+        method.request.querystring.name: false
+      MethodResponses:
+        - ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+          StatusCode: "200"
+  
+  #Define Lambda Permission for API Gateway to invoke save lambda function
+  SaveLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt SaveLambdaFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${MyApiGateway}/*/POST/save-file"
+
+  #get all notes
+  GetNotesResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref MyApiGateway
+      ParentId: !GetAtt MyApiGateway.RootResourceId
+      PathPart: 'get-all-notes'
+  
+  #get all noteds Options Method ( for /get-all-notes)
+  GetNotesOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref MyApiGateway
+      ResourceId: !Ref GetNotesResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+          ResponseModels:
+            application/json: "Empty"
+
+  #GetFile GET Method (for /get-all-notes)
+  GetNotesGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref MyApiGateway
+      ResourceId: !Ref GetNotesResource
+      HttpMethod: GET
+      AuthorizationType: NONE  # Update as needed
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetAllFilesLambdaFunction.Arn}/invocations
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+          ResponseModels:
+            application/json: "Empty"
+
+  #Define Lambda Permrmisisons
+  GetNotesLambdaPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !GetAtt GetAllFilesLambdaFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${MyApiGateway}/*/GET/get-all-notes
+
+Outputs:
+  UserPoolId:
+    Description: The ID of the Cognito User Pool
+    Value: !Ref MyCognitoUserPool
+
+  UserPoolClientId:
+    Description: The ID of the Cognito User Pool Client
+    Value: !Ref MyCognitoUserPoolClient
+
+  IdentityPoolId:
+    Description: The ID of the Cognito Identity Pool
+    Value: !Ref MyCognitoIdentityPool
+
+  BucketName:
+    Value: !Ref MyS3Bucket
+    Description: Name of the S3 bucket
+  
+  ApiGatewayUrl:
+    Description: "URL of the API Gateway"
+    Value: !Sub 'https://${MyApiGateway}.execute-api.${AWS::Region}.amazonaws.com'
