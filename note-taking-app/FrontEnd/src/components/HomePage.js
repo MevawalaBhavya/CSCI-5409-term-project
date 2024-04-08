@@ -11,7 +11,7 @@ export const HomePage = () => {
 
   const handleClick = async (e) => {
    
-    const url = 'https://akfv1x7il9.execute-api.us-east-1.amazonaws.com/note-taking-app/create-note'; 
+    const url = process.env.API_KEY+'/create-note'; 
 
     const headers = {
       'Authorization': `Bearer ${token}`
