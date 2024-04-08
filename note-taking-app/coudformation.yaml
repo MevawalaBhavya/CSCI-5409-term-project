@@ -509,12 +509,12 @@ Resources:
           cd CSCI-5409-term-project/note-taking-app/FrontEnd
           ENV_FILE="./.env"
           rm -f $ENV_FILE
-          echo "REACT_APP_API_KEY=${ApiGatewayUrl}" > $ENV_FILE
-          echo "REACT_APP_UserPoolId=${CognitoUserPoolId}" >> $ENV_FILE
-          echo "REACT_APP_ClientId=${CognitoUserPoolClientId}" >> $ENV_FILE
+          echo "REACT_APP_API_KEY='https://${MyApiGateway}.execute-api.${AWS::Region}.amazonaws.com' > $ENV_FILE
+          echo "REACT_APP_UserPoolId=${MyCognitoUserPool}" >> $ENV_FILE
+          echo "REACT_APP_ClientId=${MyCognitoUserPoolClient}" >> $ENV_FILE
+          sudo install npm -y
           sudo npm install
-          sudo npm start
-          sudo npm end
+          sudo npm start&
 
   MyEC2SecurityGroup:
     Type: AWS::EC2::SecurityGroup
