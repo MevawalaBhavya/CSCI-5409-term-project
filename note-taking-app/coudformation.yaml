@@ -10,6 +10,17 @@ Parameters:
     Description: "S3 bucket name of Lambda functions code"
     Type: String
     Default: "cloud-term-project-lambda-code-bucket"
+  ApiGatewayUrl:
+    Type: String
+    Description: URL of the API Gateway
+
+  CognitoUserPoolId:
+    Type: String
+    Description: ID of the Cognito User Pool
+
+  CognitoUserPoolClientId:
+    Type: String
+    Description: ID of the Cognito User Pool Client
 
 Resources:
   MyS3Bucket:
@@ -139,14 +150,14 @@ Resources:
           ProviderName: !GetAtt MyCognitoUserPool.ProviderName
   
   MyCognitoAuthorizer:
-  Type: 'AWS::ApiGateway::Authorizer'
-  Properties:
-    Name: MyCognitoAuthorizer
-    Type: COGNITO_USER_POOLS
-    RestApiId: !Ref MyApiGateway
-    IdentitySource: 'method.request.header.Authorization'
-    ProviderARNs:
-      - !GetAtt MyCognitoUserPool.Arn
+    Type: 'AWS::ApiGateway::Authorizer'
+    Properties:
+      Name: MyCognitoAuthorizer
+      Type: COGNITO_USER_POOLS
+      RestApiId: !Ref MyApiGateway
+      IdentitySource: 'method.request.header.Authorization'
+      ProviderARNs:
+        - !GetAtt MyCognitoUserPool.Arn
 
   CreateLambdaFunction:
     Type: AWS::Lambda::Function
@@ -284,13 +295,11 @@ Resources:
   CreateFilePostMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      AuthorizationType: NONE
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref MyCognitoAuthorizer
       RestApiId: !Ref MyApiGateway
       ResourceId: !Ref CreateFileResource
       HttpMethod: POST
-      AuthorizerId: !Ref MyCognitoAuthorizer
-        RestApiId: !Ref MyApiGateway
-        AuthorizationType: COGNITO_USER_POOLS
       Integration:
         Type: AWS
         IntegrationHttpMethod: POST
@@ -488,7 +497,7 @@ Resources:
       StageName: note-taking-app
   
     #Ec2 Instance for term project
-    EC2Instance:
+  EC2Instance:
     Type: AWS::EC2::Instance
     Properties:
       ImageId: ami-051f8a213df8bc089
@@ -509,11 +518,12 @@ Resources:
           cd /home/ec2-user
           git clone https://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@github.com/MevawalaBhavya/CSCI-5409-term-project.git
           cd CSCI-5409-term-project/note-taking-app/FrontEnd
-          echo "API_KEY=${ApiGatewayUrl}"
-          echo "UserPoolId=${CognitoUserPoolId}" > /home/ec2-user/.env
-          echo "ClientId=${CognitoUserPoolClientId}"
+          echo "API_KEY=${ApiGatewayUrl}" >> .env
+          echo "UserPoolId=${CognitoUserPoolId}" >> .env
+          echo "ClientId=${CognitoUserPoolClientId}" >> .env
           sudo npm install
           sudo npm start
+          sudo npm end
 
   MyEC2SecurityGroup:
     Type: AWS::EC2::SecurityGroup
