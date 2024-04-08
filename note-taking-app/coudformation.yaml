@@ -13,35 +13,21 @@ Parameters:
   ApiGatewayUrl:
     Type: String
     Description: URL of the API Gateway
-
+    Default: "cloud-term-project-API-Gateway"
   CognitoUserPoolId:
     Type: String
     Description: ID of the Cognito User Pool
-
+    Default: "cloud-term-project-UserPool"
   CognitoUserPoolClientId:
     Type: String
     Description: ID of the Cognito User Pool Client
+    Default: "cloud-term-project-UserPool-Client"
 
 Resources:
   MyS3Bucket:
     Type: 'AWS::S3::Bucket'
     Properties:
       BucketName: !Ref S3BucketName
-      
-  # MyS3BucketPolicy:
-  #   Type: 'AWS::S3::BucketPolicy'
-  #   Properties:
-  #     Bucket: !Ref MyS3Bucket
-  #     PolicyDocument:
-  #       Version: '2012-10-17'
-  #       Statement:
-  #         - Effect: Allow
-  #           Action:
-  #             - 's3:DeleteObject'
-  #             - 's3:GetObject'
-  #             - 's3:PutObject'
-  #           Resource: !Sub 'arn:aws:s3:::${MyS3Bucket}/*'
-  #           Principal: '*'
 
   DynamoDBTable:
     Type: AWS::DynamoDB::Table
@@ -88,31 +74,6 @@ Resources:
         IamRoleArn: arn:aws:iam::992382486559:role/LabRole
         Resources:
           - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/term-project-DB
-
-  # #DynamoDB Table Backup Role
-  # DynamoDBTableBackupRole:
-  #   Type: AWS::IAM::Role
-  #   Properties:
-  #     RoleName: DynamoDBTableBackupRole
-  #     AssumeRolePolicyDocument:
-  #       Version: "2012-10-17"
-  #       Statement:
-  #         - Effect: Allow
-  #           Principal:
-  #             Service:
-  #               - backup.amazonaws.com
-  #           Action:
-  #             - sts:AssumeRole
-  #     Path: "/"
-  #     Policies:
-  #       - PolicyName: DynamoDBTableBackupPolicy
-  #         PolicyDocument:
-  #           Version: "2012-10-17"
-  #           Statement:
-  #             - Effect: Allow
-  #               Action:
-  #                 - dynamodb:*
-  #               Resource: "*"
 
   MyCognitoUserPool:
     Type: 'AWS::Cognito::UserPool'
@@ -185,54 +146,7 @@ Resources:
         S3Key: get-all-notes.zip
       Runtime: nodejs20.x
       Timeout: 90
-  
-  # MyLambdaExecutionRole:
-  #   Type: AWS::IAM::Role
-  #   Properties:
-  #     RoleName: MyLambdaExecutionRole
-  #     AssumeRolePolicyDocument:
-  #       Version: "2012-10-17"
-  #       Statement:
-  #         - Effect: Allow
-  #           Principal:
-  #             Service:
-  #               - lambda.amazonaws.com
-  #           Action:
-  #             - sts:AssumeRole
-  #     Path: "/"
-  #     Policies:
-  #       - PolicyName: MyLambdaExecutionPolicy
-  #         PolicyDocument:
-  #           Version: "2012-10-17"
-  #           Statement:
-  #             - Effect: Allow
-  #               Action:
-  #                 - logs:CreateLogGroup
-  #                 - logs:CreateLogStream
-  #                 - logs:PutLogEvents
-  #               Resource: "arn:aws:logs:*:*:*"
-  #             - Effect: Allow
-  #               Action:
-  #                 - dynamodb:PutItem
-  #                 - dynamodb:GetItem
-  #                 - dynamodb:UpdateItem
-  #                 - dynamodb:DeleteItem
-  #                 - dynamodb:Scan
-  #                 - dynamodb:Query
-  #               Resource: "*"
-  #             - Effect: Allow
-  #               Action:
-  #                 - s3:PutObject
-  #                 - s3:GetObject
-  #                 - s3:DeleteObject
-  #                 - s3:ListBucket
-  #               Resource: "*"
-  #             - Effect: Allow
-  #               Action:
-  #                 - secretsmanager:GetSecretValue
-  #               Resource: "*"
-
-  
+    
   MyApiGateway:
     Type: 'AWS::ApiGateway::RestApi'
     Properties:
@@ -495,7 +409,7 @@ Resources:
         - Ref: MyEC2SecurityGroup
       Tags:
         - Key: Name
-          Value: Cloud term project EC2-demo
+          Value: Cloud term project EC2
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash

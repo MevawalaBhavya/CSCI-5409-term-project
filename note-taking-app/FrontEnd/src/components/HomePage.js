@@ -7,21 +7,24 @@ export const HomePage = () => {
 
   const navigate = useNavigate();
   const location = useLocation();
-  const token = location.state.token;
+  const token = ''
+  //location.state.token;
 
   const handleClick = async (e) => {
 
     console.log(token);
    
     const url = process.env.REACT_APP_API_KEY+'/create-note'; 
-
     const headers = {
       'Authorization': `Bearer ${token}`
     };
 
       try {
         await axios.post(url, { headers }).then( (res) => {
-          navigate('/texteditor', { state: { fileId: res.data.fileId, token:token } });
+          const data = JSON.parse(res.data.body);
+          const fileId = data.fileId;
+          console.log(fileId);
+          navigate('/texteditor', { state: { fileId: fileId, token:token } });
           toast.success('Note created successfully !');
         });
       } catch (error) {

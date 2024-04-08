@@ -27,7 +27,7 @@ exports.handler = async (event) => {
   return {
     statusCode: 200,
     headers: {
-      "Access-Control-Allow-Origin": "*", // Adjust as needed for your use case
+      "Access-Control-Allow-Origin": "*", 
       "Content-Type": "application/json"
   },
   body: JSON.stringify({ fileId: fileId })
