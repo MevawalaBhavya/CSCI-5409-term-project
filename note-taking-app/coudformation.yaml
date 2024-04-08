@@ -500,10 +500,10 @@ Resources:
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
-          sudo su
           mkdir /home/ec2-user/
-          yum install -y git
-          yum install -y nodejs
+          sudo yum update
+          sudo yum install -y git
+          sudo yum install -y nodejs
           cd /home/ec2-user
           git clone https://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@github.com/MevawalaBhavya/CSCI-5409-term-project.git
           cd CSCI-5409-term-project/note-taking-app/FrontEnd
@@ -512,7 +512,6 @@ Resources:
           echo "REACT_APP_API_KEY='https://${MyApiGateway}.execute-api.${AWS::Region}.amazonaws.com' > $ENV_FILE
           echo "REACT_APP_UserPoolId=${MyCognitoUserPool}" >> $ENV_FILE
           echo "REACT_APP_ClientId=${MyCognitoUserPoolClient}" >> $ENV_FILE
-          sudo install npm -y
           sudo npm install
           sudo npm start&
 
