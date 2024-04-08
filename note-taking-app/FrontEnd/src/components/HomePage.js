@@ -10,8 +10,10 @@ export const HomePage = () => {
   const token = location.state.token;
 
   const handleClick = async (e) => {
+
+    console.log(token);
    
-    const url = process.env.API_KEY+'/create-note'; 
+    const url = process.env.REACT_APP_API_KEY+'/create-note'; 
 
     const headers = {
       'Authorization': `Bearer ${token}`

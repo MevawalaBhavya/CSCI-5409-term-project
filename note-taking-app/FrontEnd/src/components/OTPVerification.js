@@ -33,7 +33,7 @@ const OTPVerification = () => {
                 toast.error(err.message);
             } else {
                 toast.success('OTP Verified Successfully');
-                console.log("yessssss", data);
+                console.log("Verified", data);
                 navigate('/')
             }
         });

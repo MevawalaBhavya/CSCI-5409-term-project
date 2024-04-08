@@ -34,6 +34,8 @@ const Login = () => {
         });
 
         return new Promise((resolve, reject) => {
+            console.log(authDetails);
+
             user.authenticateUser(authDetails, {
                 onSuccess: (session) => {
                     toast.success("Login successfull !!")
@@ -68,7 +70,7 @@ const Login = () => {
                 toast.success("User Register !!");
                 console.log(data);
                 console.log(data.user.username);
-                navigate('/otpValidate', { state: { emailID: data.user.username } });
+                navigate('/otpValidate', { state: { emailID: data.user.username} });
             }
 
         })

@@ -23,7 +23,7 @@ const TextEditor = () => {
 
     console.log('Saved note:', note);
 
-    const url = process.env.API_KEY+'/save-file';
+    const url = 'https://hj9496z906.execute-api.us-east-1.amazonaws.com/note-taking-app'+'/save-file';
 
     try {
       await axios.post(url, {

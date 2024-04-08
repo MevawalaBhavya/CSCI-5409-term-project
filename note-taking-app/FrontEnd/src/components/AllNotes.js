@@ -15,7 +15,7 @@ export const AllNotes = () => {
       const fetchFileID = async () => {
         setIsLoading(true);
 
-        const url = process.env.API_KEY+'/get-all-notes';
+        const url = 'https://hj9496z906.execute-api.us-east-1.amazonaws.com/note-taking-app'+'/get-all-notes';
   
         const headers = {
           'Authorization': `Bearer ${token}`

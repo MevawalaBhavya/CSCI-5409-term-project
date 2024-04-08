@@ -120,17 +120,10 @@ Resources:
       UserPoolName: cloud-term-project-user-pool-1
       UsernameAttributes:
         - email 
-      Schema:
-        - Name: email
-          AttributeDataType: String
-          Mutable: true
-          Required: true
-        - Name: username
-          AttributeDataType: String
-          Mutable: true
-          Required: false
       AutoVerifiedAttributes:
         - email
+      EmailVerificationMessage: 'Verify email address {####}'
+      EmailVerificationSubject: 'Verify email to create note'
 
   MyCognitoUserPoolClient:
     Type: 'AWS::Cognito::UserPoolClient'
@@ -139,15 +132,12 @@ Resources:
       UserPoolId: !Ref MyCognitoUserPool
       GenerateSecret: false
 
-  MyCognitoIdentityPool:
-    Type: 'AWS::Cognito::IdentityPool'
+  CognitoUserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
     Properties:
-      IdentityPoolName: MyIdentityPool
-      AllowUnauthenticatedIdentities: false
-      CognitoIdentityProviders:
-        - ClientId: !Ref MyCognitoUserPoolClient
-          ProviderName: !GetAtt MyCognitoUserPool.ProviderName
-  
+      Domain: note-taking-app-test
+      UserPoolId: !Ref MyCognitoUserPool
+
   MyCognitoAuthorizer:
     Type: 'AWS::ApiGateway::Authorizer'
     Properties:
@@ -294,8 +284,8 @@ Resources:
   CreateFilePostMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref MyCognitoAuthorizer
+      AuthorizationType: NONE
+      # AuthorizerId: !Ref MyCognitoAuthorizer
       RestApiId: !Ref MyApiGateway
       ResourceId: !Ref CreateFileResource
       HttpMethod: POST
@@ -519,9 +509,9 @@ Resources:
           cd CSCI-5409-term-project/note-taking-app/FrontEnd
           ENV_FILE="./.env"
           rm -f $ENV_FILE
-          echo "API_KEY=${ApiGatewayUrl}" > $ENV_FILE
-          echo "UserPoolId=${CognitoUserPoolId}" >> $ENV_FILE
-          echo "ClientId=${CognitoUserPoolClientId}" >> $ENV_FILE
+          echo "REACT_APP_API_KEY=${ApiGatewayUrl}" > $ENV_FILE
+          echo "REACT_APP_UserPoolId=${CognitoUserPoolId}" >> $ENV_FILE
+          echo "REACT_APP_ClientId=${CognitoUserPoolClientId}" >> $ENV_FILE
           sudo npm install
           sudo npm start
           sudo npm end
@@ -548,10 +538,6 @@ Outputs:
   UserPoolClientId:
     Description: The ID of the Cognito User Pool Client
     Value: !Ref MyCognitoUserPoolClient
-
-  IdentityPoolId:
-    Description: The ID of the Cognito Identity Pool
-    Value: !Ref MyCognitoIdentityPool
 
   BucketName:
     Value: !Ref MyS3Bucket
