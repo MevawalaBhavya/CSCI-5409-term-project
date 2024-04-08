@@ -56,9 +56,13 @@ const Login = () => {
     const handleSignUpSubmit = (e) => {
         e.preventDefault();
 
+        console.log(email);
+        console.log(password)
+
         UserPool.signUp(email, password, [], null, (err, data) => {
             if (err) {
                 toast.error("Unable to Register !!");
+                console.log(data);
                 console.log(err);
             } else {
                 toast.success("User Register !!");
