@@ -1,11 +1,10 @@
 const AWS = require('aws-sdk');
 const s3 = new AWS.S3();
 
-const bucketName = 'cloud-term-project-bucket-1'; 
+const bucketName = 'cloud-term-project-bucket-1'; // Replace with your S3 bucket name
 
 exports.handler = async (event) => {
     try {
-
         // List all objects in the bucket
         const listObjectsResponse = await s3.listObjectsV2({ Bucket: bucketName }).promise();
         const files = listObjectsResponse.Contents;
@@ -14,15 +13,15 @@ exports.handler = async (event) => {
         const filesWithBody = await Promise.all(
             files.map(async (file) => {
                 const getObjectResponse = await s3.getObject({ Bucket: bucketName, Key: file.Key }).promise();
-                const body = getObjectResponse.Body.toString('utf-8'); 
+                const body = getObjectResponse.Body.toString('utf-8'); // Convert the Body buffer to a string
                 return { Key: file.Key, Body: body };
             })
         );
 
-        console.log('File body:', filesWithBody);
+        console.log('Files with body:', filesWithBody);
         return filesWithBody;
     } catch (error) {
         console.error('Error:', error);
-        throw error; 
+        throw error; // Or handle error as necessary
     }
 };

@@ -11,14 +11,14 @@ export const HomePage = () => {
 
   const handleClick = async (e) => {
    
-    const url = 'https://5gjqon2lia.execute-api.us-east-1.amazonaws.com/note-taking-app/create-file'; 
+    const url = 'https://akfv1x7il9.execute-api.us-east-1.amazonaws.com/note-taking-app/create-note'; 
 
     const headers = {
       'Authorization': `Bearer ${token}`
     };
 
       try {
-        await axios.get(url, { headers }).then( (res) => {
+        await axios.post(url, { headers }).then( (res) => {
           navigate('/texteditor', { state: { fileId: res.data.fileId, token:token } });
           toast.success('Note created successfully !');
         });

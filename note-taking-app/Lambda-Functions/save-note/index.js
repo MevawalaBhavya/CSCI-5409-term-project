@@ -19,6 +19,10 @@ exports.handler = async (event) => {
     return {
       statusCode: 200,
       message: "File saved !!",
+      headers: {
+        "Access-Control-Allow-Origin": "*", // Adjust as needed for your use case
+        "Content-Type": "application/json"
+    },
     };
   } catch (error) {
     console.error("Error in saving file: ", error);

@@ -6,10 +6,7 @@ Parameters:
     Description: "The name of the S3 bucket for the collaborative text editor."
     Type: String
     Default: "cloud-term-project-bucket-1"
-  CognitoUserPoolArn:
-    Type: String
-    Description: The ARN of the Cognito User Pool to use for the authorizer
-  LambdaSourceBucket:
+  LambdaCodeBucket:
     Description: "S3 bucket name of Lambda functions code"
     Type: String
     Default: "cloud-term-project-lambda-code-bucket"
@@ -19,45 +16,35 @@ Resources:
     Type: 'AWS::S3::Bucket'
     Properties:
       BucketName: !Ref S3BucketName
-      AccessControl: PublicRead
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: false
-        BlockPublicPolicy: false
-        IgnorePublicAcls: false
-        RestrictPublicBuckets: false
-      VersioningConfiguration:
-        Status: Enabled
-
-  MyS3BucketPolicy:
-    Type: 'AWS::S3::BucketPolicy'
-    Properties:
-      Bucket: !Ref MyS3Bucket
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - 's3:DeleteObject'
-              - 's3:GetObject'
-              - 's3:PutObject'
-            Resource: !Sub 'arn:aws:s3:::${MyS3Bucket}/*'
-            Principal: '*'
+      
+  # MyS3BucketPolicy:
+  #   Type: 'AWS::S3::BucketPolicy'
+  #   Properties:
+  #     Bucket: !Ref MyS3Bucket
+  #     PolicyDocument:
+  #       Version: '2012-10-17'
+  #       Statement:
+  #         - Effect: Allow
+  #           Action:
+  #             - 's3:DeleteObject'
+  #             - 's3:GetObject'
+  #             - 's3:PutObject'
+  #           Resource: !Sub 'arn:aws:s3:::${MyS3Bucket}/*'
+  #           Principal: '*'
 
   DynamoDBTable:
-    Type: 'AWS::DynamoDB::Table'
+    Type: AWS::DynamoDB::Table
     Properties:
       TableName: cloud-term-project-DB-1
       AttributeDefinitions:
-        - AttributeName: Id
+        - AttributeName: fileId
           AttributeType: S
       KeySchema:
-        - AttributeName: Id
+        - AttributeName: fileId
           KeyType: HASH
       ProvisionedThroughput:
         ReadCapacityUnits: 5
         WriteCapacityUnits: 5
-      SSESpecification:
-        SSEEnabled: true
   
   #DynamoDB Table Backup Vault
   DynamoDBTableBackupVault:
@@ -87,60 +74,58 @@ Resources:
       BackupPlanId: !Ref DynamoDBTableBackupPlan
       BackupSelection:
         SelectionName: term-project-DB-backup-selection
-        IamRoleArn: !GetAtt DynamoDBTableBackupRole.Arn
+        IamRoleArn: arn:aws:iam::992382486559:role/LabRole
         Resources:
           - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/term-project-DB
 
-  #DynamoDB Table Backup Role
-  DynamoDBTableBackupRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: DynamoDBTableBackupRole
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - backup.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      Path: "/"
-      Policies:
-        - PolicyName: DynamoDBTableBackupPolicy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - dynamodb:*
-                Resource: "*"
+  # #DynamoDB Table Backup Role
+  # DynamoDBTableBackupRole:
+  #   Type: AWS::IAM::Role
+  #   Properties:
+  #     RoleName: DynamoDBTableBackupRole
+  #     AssumeRolePolicyDocument:
+  #       Version: "2012-10-17"
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service:
+  #               - backup.amazonaws.com
+  #           Action:
+  #             - sts:AssumeRole
+  #     Path: "/"
+  #     Policies:
+  #       - PolicyName: DynamoDBTableBackupPolicy
+  #         PolicyDocument:
+  #           Version: "2012-10-17"
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - dynamodb:*
+  #               Resource: "*"
 
-    EC2Instance:
+  EC2Instance:
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: ami-0230bd60aa48260c6
+      ImageId: ami-051f8a213df8bc089
       InstanceType: t2.large
-      KeyName: cloudtermproject
+      KeyName: term-project-ec2
       SecurityGroups:
         - Ref: MyEC2SecurityGroup
       Tags:
         - Key: Name
-          Value: EC2Instance
+          Value: Cloud term project EC2-test
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
-          sudo yum update
-          sudo yum install -y git
-          curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
-          export NVM_DIR="$HOME/.nvm"
-          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-          nvm install --lts
+          sudo su
+          mkdir /home/ec2-user/
+          yum install -y git
+          yum install -y nodejs
           cd /home/ec2-user
           git clone https://github.com/MevawalaBhavya/CSCI-5409-term-project.git
           cd CSCI-5409-term-project/note-taking-app/FrontEnd
-          npm install
-          npm start
+          sudo npm install
+          sudo npm start
 
   MyEC2SecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -155,15 +140,6 @@ Resources:
           FromPort: 3000
           ToPort: 3000
           CidrIp: 0.0.0.0/0
-
-  EC2InstanceIP:
-    Type: AWS::SecretsManager::Secret
-    Properties:
-      Name: "EC2InstanceIP"
-      Description: "Secrets for the EC2 IP used in this Project"
-      SecretString: !Sub |
-        {
-          "EC2InstanceIP": "${EC2Instance.PublicIp}"}
 
   MyCognitoUserPool:
     Type: 'AWS::Cognito::UserPool'
@@ -206,7 +182,7 @@ Resources:
       FunctionName: CreateLambdaFunction
       Description: "Lambda function to create a new note"
       Handler: index.handler
-      Role: !GetAtt MyLambdaExecutionRole.Arn
+      Role: arn:aws:iam::992382486559:role/LabRole
       Code:
         S3Bucket: !Ref LambdaCodeBucket
         S3Key: create-note.zip
@@ -219,7 +195,7 @@ Resources:
       FunctionName: SaveLambdaFunction
       Description: "Lambda function to save a note"
       Handler: index.handler
-      Role: !GetAtt MyLambdaExecutionRole.Arn
+      Role: arn:aws:iam::992382486559:role/LabRole
       Code:
         S3Bucket: !Ref LambdaCodeBucket
         S3Key: save-note.zip
@@ -232,12 +208,59 @@ Resources:
       FunctionName: GetAllFilesLambdaFunction
       Description: "Lambda function to get all notes"
       Handler: index.handler
-      Role: !GetAtt MyLambdaExecutionRole.Arn
+      Role: arn:aws:iam::992382486559:role/LabRole
       Code:
         S3Bucket: !Ref LambdaCodeBucket
         S3Key: get-all-notes.zip
       Runtime: nodejs20.x
       Timeout: 90
+  
+  # MyLambdaExecutionRole:
+  #   Type: AWS::IAM::Role
+  #   Properties:
+  #     RoleName: MyLambdaExecutionRole
+  #     AssumeRolePolicyDocument:
+  #       Version: "2012-10-17"
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service:
+  #               - lambda.amazonaws.com
+  #           Action:
+  #             - sts:AssumeRole
+  #     Path: "/"
+  #     Policies:
+  #       - PolicyName: MyLambdaExecutionPolicy
+  #         PolicyDocument:
+  #           Version: "2012-10-17"
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - logs:CreateLogGroup
+  #                 - logs:CreateLogStream
+  #                 - logs:PutLogEvents
+  #               Resource: "arn:aws:logs:*:*:*"
+  #             - Effect: Allow
+  #               Action:
+  #                 - dynamodb:PutItem
+  #                 - dynamodb:GetItem
+  #                 - dynamodb:UpdateItem
+  #                 - dynamodb:DeleteItem
+  #                 - dynamodb:Scan
+  #                 - dynamodb:Query
+  #               Resource: "*"
+  #             - Effect: Allow
+  #               Action:
+  #                 - s3:PutObject
+  #                 - s3:GetObject
+  #                 - s3:DeleteObject
+  #                 - s3:ListBucket
+  #               Resource: "*"
+  #             - Effect: Allow
+  #               Action:
+  #                 - secretsmanager:GetSecretValue
+  #               Resource: "*"
+
   
   MyApiGateway:
     Type: 'AWS::ApiGateway::RestApi'
@@ -248,21 +271,12 @@ Resources:
         Types:
           - REGIONAL
   
-  CognitoAuthorizer:
-    Type: 'AWS::ApiGateway::Authorizer'
-    Properties:
-      Name: 'CognitoAuthorizer'
-      Type: COGNITO_USER_POOLS
-      IdentitySource: 'method.request.header.Authorization'
-      RestApiId: !Ref MyApiGateway
-      ProviderARNs: [ !Ref CognitoUserPoolArn ]
-
   CreateFileResource:
     Type: AWS::ApiGateway::Resource
     Properties:
       RestApiId: !Ref MyApiGateway
       ParentId: !GetAtt MyApiGateway.RootResourceId
-      PathPart: create
+      PathPart: create-note
 
 #CreateFile Options Method
   CreateFileOptionsMethod:
@@ -270,7 +284,7 @@ Resources:
     Properties:
       AuthorizationType: NONE
       RestApiId: !Ref MyApiGateway
-      ResourceId: !Ref MyCreateFileResource
+      ResourceId: !Ref CreateFileResource
       HttpMethod: OPTIONS
       Integration:
         IntegrationResponses:
@@ -325,14 +339,14 @@ Resources:
             method.response.header.Access-Control-Allow-Origin: true
           StatusCode: "200"
   
-  #Define Lambda Permission for API Gateway to invoke create lambda function
+  #Lambda Permission for API Gateway to invoke create lambda function
   CreateLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
       FunctionName: !GetAtt CreateLambdaFunction.Arn
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${MyApiGateway}/*/POST/create"
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${MyApiGateway}/*/POST/create-note"
 
   SaveFileResource:
     Type: 'AWS::ApiGateway::Resource'
@@ -430,19 +444,23 @@ Resources:
         IntegrationResponses:
           - StatusCode: 200
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
-              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
-              method.response.header.Access-Control-Allow-Origin: "'*'"
+              "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+              "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE'"
+              "method.response.header.Access-Control-Allow-Origin": "'*'"
+            ResponseTemplates:
+              "application/json": ""
+        PassthroughBehavior: WHEN_NO_MATCH
         RequestTemplates:
-          application/json: '{"statusCode": 200}'
+          "application/json": '{"statusCode": 200}'
+        Type: MOCK
       MethodResponses:
         - StatusCode: 200
           ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-            method.response.header.Access-Control-Allow-Origin: true
+            "method.response.header.Access-Control-Allow-Headers": true
+            "method.response.header.Access-Control-Allow-Methods": true
+            "method.response.header.Access-Control-Allow-Origin": true
           ResponseModels:
-            application/json: "Empty"
+            "application/json": "Empty"
 
   #GetFile GET Method (for /get-all-notes)
   GetNotesGetMethod:
@@ -453,15 +471,27 @@ Resources:
       HttpMethod: GET
       AuthorizationType: NONE  # Update as needed
       Integration:
-        Type: AWS_PROXY
+        Type: AWS
         IntegrationHttpMethod: POST
         Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetAllFilesLambdaFunction.Arn}/invocations
+        RequestTemplates:
+          application/json: $input.json('$')
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              "application/json": $input.json('$')
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      RequestParameters:
+        method.request.querystring.name: false
       MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
+        - ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
-          ResponseModels:
-            application/json: "Empty"
+          StatusCode: "200"
 
   #Define Lambda Permrmisisons
   GetNotesLambdaPermission:
@@ -471,6 +501,16 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${MyApiGateway}/*/GET/get-all-notes
+  
+  MyApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - CreateFilePostMethod
+      - GetNotesGetMethod
+      - SaveFilePostMethod
+    Properties:
+      RestApiId: !Ref MyApiGateway
+      StageName: note-taking-app
 
 Outputs:
   UserPoolId:
