@@ -2,7 +2,7 @@
 
 ## Description
 
-QuickNotez is an innovative personalized note-taking application designed to streamline the process of capturing, organizing, and accessing notes across various devices at any time. Leveraging cloud-based technology, QuickNotez ensures seamless synchronization and accessibility, enabling users to stay productive and organized anytime, anywhere.architecture.
+QuickNotez is an innovative personalized note-taking application designed to streamline the process of capturing, organizing, and accessing notes across various devices at any time. Leveraging cloud-based technology, QuickNotez ensures seamless synchronization and accessibility, enabling users to stay productive and organized anytime, anywhere.
 
 ## Features
 - Store files securely in Amazon S3
